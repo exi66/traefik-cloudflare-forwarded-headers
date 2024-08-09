@@ -94,8 +94,6 @@ certificatesResolvers:
       storage: /etc/dokploy/traefik/dynamic/acme.json
       httpChallenge:
         entryPoint: web
-accessLog: 
-  format: 'json'
 ```
 
 ## Crontab
