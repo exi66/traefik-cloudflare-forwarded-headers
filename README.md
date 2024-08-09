@@ -62,7 +62,6 @@ entryPoints:
       tls:
         certResolver: letsencrypt
     forwardedHeaders:
-      insecure: true
       trustedIPs:
         - 173.245.48.0/20
         - 103.21.244.0/22
