@@ -1,12 +1,8 @@
-# Get Real Visitor IP Address (Restoring Visitor IPs) with Traefik and CloudFlare
-This project aims to modify your traefik configuration to let you get the real ip address of your visitors for your web applications that behind of Cloudflare's reverse proxy network. Bash script can be scheduled to create an automated up-to-date Cloudflare ip list file.
-
-To provide the client (visitor) IP address for every request to the origin, Cloudflare adds the "CF-Connecting-IP" header. We will catch the header and get the real ip address of the visitor.
+# Get the forwarded headers information with Traefik and CloudFlare
+This project aims to modify your traefik configuration to let you get the the forwarded headers information (X-Forwarded-*). of your visitors for your web applications that behind of Cloudflare's reverse proxy network. Bash script can be scheduled to create an automated up-to-date Cloudflare ip list file.
 
 ## Traefik Configuration
-With a small configuration modification we can integrate replacing the real ip address of the visitor instead of getting CloudFlare's load balancers' ip addresses.
-
-The bash script may run manually or can be scheduled to refresh the ip list of CloudFlare automatically.
+The bash script may run manually or can be scheduled to refresh the ip list of CloudFlare automatically intro [Forwarded Headers](https://doc.traefik.io/traefik/routing/entrypoints/#forwarded-headers) in yml config.
 
 This example uses a Traefik instance at [Dokploy](https://github.com/Dokploy/dokploy)
 ```sh
