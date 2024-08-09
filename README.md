@@ -1,85 +1,109 @@
-# Get Real Visitor IP Address (Restoring Visitor IPs) with Nginx and CloudFlare
-This project aims to modify your nginx configuration to let you get the real ip address of your visitors for your web applications that behind of Cloudflare's reverse proxy network. Bash script can be scheduled to create an automated up-to-date Cloudflare ip list file.
+# Get Real Visitor IP Address (Restoring Visitor IPs) with Traefik and CloudFlare
+This project aims to modify your traefik configuration to let you get the real ip address of your visitors for your web applications that behind of Cloudflare's reverse proxy network. Bash script can be scheduled to create an automated up-to-date Cloudflare ip list file.
 
 To provide the client (visitor) IP address for every request to the origin, Cloudflare adds the "CF-Connecting-IP" header. We will catch the header and get the real ip address of the visitor.
 
-## Nginx Configuration
+## Traefik Configuration
 With a small configuration modification we can integrate replacing the real ip address of the visitor instead of getting CloudFlare's load balancers' ip addresses.
 
-Open "/etc/nginx/nginx.conf" file with your favorite text editor and just add the following lines to your nginx.conf inside http{....} block.
-
-```nginx
-include /etc/nginx/cloudflare;
-```
-
 The bash script may run manually or can be scheduled to refresh the ip list of CloudFlare automatically.
+
+This example uses a Traefik instance at [Dokploy](https://github.com/Dokploy/dokploy)
 ```sh
 #!/bin/bash
 
-CLOUDFLARE_FILE_PATH=/etc/nginx/cloudflare
+# a package yq (https://github.com/mikefarah/yq) is required for operation
+# you can install it with the command:
+#
+#       wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq && chmod +x /usr/bin/yq
+#
 
-echo "#Cloudflare" > $CLOUDFLARE_FILE_PATH;
-echo "" >> $CLOUDFLARE_FILE_PATH;
+# for example, here is the path to traefik in the dokploy (https://github.com/Dokploy/dokploy) instance
+CONFIG_FILE_PATH=${1:-/etc/dokploy/traefik/traefik.yml}
+BACKUP_FILE_PATH=${2:-/etc/dokploy/traefik/traefik.yml.bak}
+DOKPLOY_API_TOKEN=${3}
 
-echo "# - IPv4" >> $CLOUDFLARE_FILE_PATH;
+cat $CONFIG_FILE_PATH > $BACKUP_FILE_PATH;
+
+yq -i "del(.entryPoints.websecure.forwardedHeaders.trustedIPs)" $CONFIG_FILE_PATH;
+
 for i in `curl -s -L https://www.cloudflare.com/ips-v4`; do
-    echo "set_real_ip_from $i;" >> $CLOUDFLARE_FILE_PATH;
+    yq -i ".entryPoints.websecure.forwardedHeaders.trustedIPs += [\"$i\"]" $CONFIG_FILE_PATH;
 done
 
-echo "" >> $CLOUDFLARE_FILE_PATH;
-echo "# - IPv6" >> $CLOUDFLARE_FILE_PATH;
 for i in `curl -s -L https://www.cloudflare.com/ips-v6`; do
-    echo "set_real_ip_from $i;" >> $CLOUDFLARE_FILE_PATH;
+    yq -i ".entryPoints.websecure.forwardedHeaders.trustedIPs += [\"$i\"]" $CONFIG_FILE_PATH;
 done
 
-echo "" >> $CLOUDFLARE_FILE_PATH;
-echo "real_ip_header CF-Connecting-IP;" >> $CLOUDFLARE_FILE_PATH;
-
-#test configuration and reload nginx
-nginx -t && systemctl reload nginx
+# reload traefik instance
+# for example, here is the API endpoint for reloading traefik in dokploy (https://github.com/Dokploy/dokploy)
+curl -X 'POST' \
+  "http://localhost:3000/api/settings.reloadTraefik" \
+  -H "accept: application/json" \
+  -H "Authorization: Bearer $DOKPLOY_API_TOKEN"
 ```
 
 ## Output
-Your "/etc/nginx/cloudflare" file may look like as below;
+Your "/etc/dokploy/traefik/traefik.yml" file may look like as below;
 
-```nginx
-#Cloudflare ip addresses
-
-# - IPv4
-set_real_ip_from 173.245.48.0/20;
-set_real_ip_from 103.21.244.0/22;
-set_real_ip_from 103.22.200.0/22;
-set_real_ip_from 103.31.4.0/22;
-set_real_ip_from 141.101.64.0/18;
-set_real_ip_from 108.162.192.0/18;
-set_real_ip_from 190.93.240.0/20;
-set_real_ip_from 188.114.96.0/20;
-set_real_ip_from 197.234.240.0/22;
-set_real_ip_from 198.41.128.0/17;
-set_real_ip_from 162.158.0.0/15;
-set_real_ip_from 104.16.0.0/13;
-set_real_ip_from 104.24.0.0/14;
-set_real_ip_from 172.64.0.0/13;
-set_real_ip_from 131.0.72.0/22;
-
-# - IPv6
-set_real_ip_from 2400:cb00::/32;
-set_real_ip_from 2606:4700::/32;
-set_real_ip_from 2803:f800::/32;
-set_real_ip_from 2405:b500::/32;
-set_real_ip_from 2405:8100::/32;
-set_real_ip_from 2a06:98c0::/29;
-set_real_ip_from 2c0f:f248::/32;
-
-real_ip_header CF-Connecting-IP;
-
+``` yml
+providers:
+  docker:
+    exposedByDefault: false
+  file:
+    directory: /etc/dokploy/traefik/dynamic
+    watch: true
+entryPoints:
+  web:
+    address: ':80'
+  websecure:
+    address: ':443'
+    http:
+      tls:
+        certResolver: letsencrypt
+    forwardedHeaders:
+      insecure: true
+      trustedIPs:
+        - 173.245.48.0/20
+        - 103.21.244.0/22
+        - 103.22.200.0/22
+        - 103.31.4.0/22
+        - 141.101.64.0/18
+        - 108.162.192.0/18
+        - 190.93.240.0/20
+        - 188.114.96.0/20
+        - 197.234.240.0/22
+        - 198.41.128.0/17
+        - 162.158.0.0/15
+        - 104.16.0.0/13
+        - 104.24.0.0/14
+        - 172.64.0.0/13
+        - 131.0.72.0/22
+        - 2400:cb00::/32
+        - 2606:4700::/32
+        - 2803:f800::/32
+        - 2405:b500::/32
+        - 2405:8100::/32
+        - 2a06:98c0::/29
+        - 2c0f:f248::/32
+api:
+  insecure: true
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: root@example.com
+      storage: /etc/dokploy/traefik/dynamic/acme.json
+      httpChallenge:
+        entryPoint: web
+accessLog: 
+  format: 'json'
 ```
 
 ## Crontab
 Change the location of "/opt/scripts/cloudflare-ip-whitelist-sync.sh" anywhere you want. 
-CloudFlare ip addresses are automatically refreshed every day, and nginx will be realoded when synchronization is completed.
+CloudFlare ip addresses are automatically refreshed every day, and traefik will be realoded when synchronization is completed.
 ```sh
-# Auto sync ip addresses of Cloudflare and reload nginx
+# Auto sync ip addresses of Cloudflare and reload traefik
 30 2 * * * /opt/scripts/cloudflare-ip-whitelist-sync.sh >/dev/null 2>&1
 ```
 
@@ -102,6 +126,3 @@ their use.
 
 You are responsible for reviewing and testing any scripts you run *thoroughly* before use in any non-testing 
 environment.
-
-Thanks,   
-[Ergin BULUT](https://www.erginbulut.com)
